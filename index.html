@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+svg {
+  font: 10px sans-serif;
+}
+.line {
+  fill: none;
+  
+  stroke-width: 1.5px;
+}
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+</style>
+
+<body>
+
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script>
+
+function simulatedLineChart() {
+   var    paths = [];
+   var xDomainCount = 40; 
+   var totalWidth = 960,
+       totalHeight = 500;
+   var margin = {top: 20, right: 20, bottom: 20, left: 40},
+    width = totalWidth - margin.left - margin.right,
+    height = totalHeight - margin.top - margin.bottom;
+
+    var transitonTimeout = 500;
+    
+
+    var lineColors = {
+         0 : "red",
+         1 : "green",
+         2 : "black"
+    };
+
+    var x = d3.scale.linear()
+    .domain([1, xDomainCount - 2])
+    .range([0, width]);
+    var y = d3.scale.linear()
+    .domain([-1, 1])
+    .range([height, 0]);
+     var line = d3.svg.line()
+    .interpolate("basis")
+    .x(function(d, i) { return x(i); })
+    .y(function(d, i) { return y(d); });
+
+    function chart(selection) {
+    selection.each( function(data) {
+      
+     //Create SVG
+     var svg = d3.select(this).append("svg")
+                   .attr("width", width + margin.left + margin.right)
+                   .attr("height", height + margin.top + margin.bottom)
+                   .append("g")
+                   .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+     //add a definition for defs
+     svg.append("defs").append("clipPath")
+        .attr("id", "clip")
+        .append("rect")
+         .attr("width", width)
+         .attr("height", height);
+
+    //X axis 
+    svg.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + y(0) + ")")
+        .call(d3.svg.axis().scale(x).orient("bottom"));
+
+    //Y axis 
+    svg.append("g")
+       .attr("class", "y axis")
+       .call(d3.svg.axis().scale(y).orient("left"));
+
+    data.forEach( function(d, i) {
+        paths.push (svg.append("g")
+                  .attr("clip-path", "url(#clip)")
+                  .append("path")
+                  .datum(d)  // here there will be more than 1 line 
+                  .attr("class", "line")
+                  .attr("stroke" , lineColors[i])
+                  .attr("d", line));
+    });
+
+      });
+  }
+ 
+  chart.update = function() {
+     paths.forEach(function(path) {
+         path.attr("d", line)
+            .attr("transform", null)
+           .transition()
+           .duration(transitonTimeout)
+          .ease("linear")
+          .attr("transform", "translate(" + x(0) + ",0)");      
+     });
+      return chart;
+  }
+
+  chart.margin = function(_) {
+    if (!arguments.length) return margin;
+    margin = _;
+    return chart;
+  };
+
+  chart.width = function(_) {
+    if (!arguments.length) return totalWidth;
+    totalWidth = _;
+    return chart;
+  };
+
+  chart.height = function(_) {
+    if (!arguments.length) return totalHeight;
+    totalHeight = _;
+    return chart;
+  };
+
+  chart.x = function(_) {
+    if (!arguments.length) return x;
+    x = _;
+    return chart;
+  };
+
+  chart.y = function(_) {
+    if (!arguments.length) return y;
+    y = _;
+    return chart;
+  };
+
+  return chart;
+
+}
+
+var randomx = d3.random.normal(0, .2);
+var randomy = d3.random.normal(0.3,0.4);
+var randomz = d3.random.normal(0, -.1);
+
+var data = [];
+data[0] = d3.range(40).map(randomx); //empty data
+data[1] = d3.range(40).map(randomy); //empty data
+data[2] = d3.range(40).map(randomz);
+
+var chart = simulatedLineChart();
+
+d3.select("body")
+      .data([data])
+      .call(chart);
+
+ setInterval( function() { 
+     data[0].push(randomx());
+     data[1].push(randomy());
+     data[2].push(randomz());
+
+     chart.update();
+      data[0].shift();
+      data[1].shift();
+      data[2].shift();
+
+   }, 1000);
+
+</script>
+
+
