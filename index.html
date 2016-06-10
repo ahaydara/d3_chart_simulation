@@ -22,40 +22,61 @@ svg {
 <script src="//d3js.org/d3.v3.min.js"></script>
 <script>
 
+// This code is a simple amalgation of below 2 d3 tutorials:
+// href: https://gist.github.com/mbostock/1642989
+//href : https://bost.ocks.org/mike/chart/time-series-chart.js
+
 function simulatedLineChart() {
-   var    paths = [];
-   var xDomainCount = 40; 
-   var totalWidth = 960,
-       totalHeight = 500;
-   var margin = {top: 20, right: 20, bottom: 20, left: 40},
-    width = totalWidth - margin.left - margin.right,
-    height = totalHeight - margin.top - margin.bottom;
+   //internal lines which holds data and path
+   var lines = [];
+   var xDomainCount = 60; 
+   var yDomainCount = 100;
+  
+   var margin = {top: 20, right: 20, bottom: 20, left: 40};
+   var width = 960 ;
+   var height = 500 ;
 
-    var transitonTimeout = 500;
+   var transitonDuration = 500;
     
+   var svg, xAxis, yAxis, text;
 
-    var lineColors = {
-         0 : "red",
-         1 : "green",
-         2 : "black"
-    };
+   var x , y ,line ;
+   
+   calculateScale();
 
-    var x = d3.scale.linear()
+   function calculateScale() {
+      x = d3.scale.linear()
     .domain([1, xDomainCount - 2])
     .range([0, width]);
-    var y = d3.scale.linear()
-    .domain([-1, 1])
+
+      y = d3.scale.linear()
+    .domain([0, yDomainCount])
     .range([height, 0]);
-     var line = d3.svg.line()
+
+      line = d3.svg.line()
     .interpolate("basis")
     .x(function(d, i) { return x(i); })
     .y(function(d, i) { return y(d); });
 
+    }
+
     function chart(selection) {
     selection.each( function(data) {
       
+    data.forEach( function(d) {
+      if(lines[d.id] == undefined) {
+          lines[d.id] = {}; //create an object where 
+            if(lines[d.id].data == undefined)
+                lines[d.id].data = [];
+        }
+      
+        lines[d.id].name = d.name;    
+        lines[d.id].color = d.color;
+        lines[d.id].data.push(d.value);
+    });
+    
      //Create SVG
-     var svg = d3.select(this).append("svg")
+    svg = d3.select(this).append("svg")
                    .attr("width", width + margin.left + margin.right)
                    .attr("height", height + margin.top + margin.bottom)
                    .append("g")
@@ -69,101 +90,179 @@ function simulatedLineChart() {
          .attr("height", height);
 
     //X axis 
-    svg.append("g")
-        .attr("class", "x axis")
+    xAxis = svg.append("g");
+
+        xAxis.attr("class", "xaxis")
         .attr("transform", "translate(0," + y(0) + ")")
         .call(d3.svg.axis().scale(x).orient("bottom"));
 
     //Y axis 
-    svg.append("g")
-       .attr("class", "y axis")
+    yAxis = svg.append("g")
+            .attr("class", "yaxis")
        .call(d3.svg.axis().scale(y).orient("left"));
 
-    data.forEach( function(d, i) {
-        paths.push (svg.append("g")
+    lines.forEach( function(d, i) {
+        d.path = svg.append("g")
                   .attr("clip-path", "url(#clip)")
                   .append("path")
-                  .datum(d)  // here there will be more than 1 line 
+                  .datum(d.data)  // here there will be more than 1 line 
                   .attr("class", "line")
-                  .attr("stroke" , lineColors[i])
-                  .attr("d", line));
-    });
+                  .attr("stroke" ,  d.color)
+                  .attr("d", line);
 
-      });
-  }
+      //add definitions
+      
+     text = svg.append("text")      // text label for the x axis
+        .attr("x",  x((xDomainCount/lines.length) * i)+ x(10) )
+        .attr("y",  5 )
+        .style("text-anchor", "middle")
+        .style("stroke", d.color)
+        .attr("class",  "line"+ i.toString())
+        .text(d.name);
+
+    });
+  });
+}
  
-  chart.update = function() {
-     paths.forEach(function(path) {
-         path.attr("d", line)
-            .attr("transform", null)
-           .transition()
-           .duration(transitonTimeout)
+chart.update = function(data) {
+      
+    if(!lines[data.id]) return chart;
+
+    lines[data.id].data.push(data.value);
+
+    //update the line
+    var path = lines[data.id].path.attr("d", line)
+            .attr("transform", null);
+            
+    svg.select(".line"+data.id.toString()).transition()
+          .duration(transitonDuration)
           .ease("linear")
-          .attr("transform", "translate(" + x(0) + ",0)");      
-     });
-      return chart;
+           .text(lines[data.id].name + ":"+ Math.round(data.value)); 
+
+    //check whether x Domain has exceeded 
+    if(lines[data.id].data.length > xDomainCount) {
+      lines[data.id].data.shift();
+      path.transition()
+           .duration(transitonDuration)
+          .ease("linear")
+          .attr("transform", "translate(" + x(0) + ",0)"); 
+      }
+
+     if(data.value > highestValue) 
+    if(yDomainCount < data.value + 10 ){
+      //trasition of y axis
+       yDomainCount =  yDomainCount + 10;
+       y = d3.scale.linear().domain([0, yDomainCount]).range([height, 0]);
+       svg.select(".yaxis")
+                    .transition().duration(transitonDuration).ease("sin-in-out")  
+                    .call(d3.svg.axis().scale(y).orient("left"));  
+    }
+    
+     return chart;
   }
 
   chart.margin = function(_) {
     if (!arguments.length) return margin;
     margin = _;
+    calculateScale();
     return chart;
   };
 
   chart.width = function(_) {
-    if (!arguments.length) return totalWidth;
-    totalWidth = _;
+    if (!arguments.length) return width;
+    width = _;
+    calculateScale();
     return chart;
   };
 
   chart.height = function(_) {
-    if (!arguments.length) return totalHeight;
-    totalHeight = _;
+    if (!arguments.length) return height;
+    height= _;
+    calculateScale();
     return chart;
   };
 
-  chart.x = function(_) {
+
+  chart.xDomainCount = function(_) {
+    if (!arguments.length) return xDomainCount;
+    xDomainCount = _;
+    calculateScale();
+    return chart;
+  };
+
+  chart.yDomainCount = function(_) {
+    if (!arguments.length) return yDomainCount;
+    yDomainCount = _;
+    calculateScale();
+    return chart;
+  };
+
+  chart.xScale = function(_) {
     if (!arguments.length) return x;
     x = _;
+    calculateScale();
     return chart;
   };
 
-  chart.y = function(_) {
+  chart.yScale = function(_) {
     if (!arguments.length) return y;
     y = _;
+    calculateScale();
     return chart;
   };
+
+ chart.transitonDuration = function(_){
+    if(!arguments.length)  return  transitonDuration;
+    transitonDuration = _;
+    return chart;
+  }
 
   return chart;
 
 }
 
-var randomx = d3.random.normal(0, .2);
-var randomy = d3.random.normal(0.3,0.4);
-var randomz = d3.random.normal(0, -.1);
 
-var data = [];
-data[0] = d3.range(40).map(randomx); //empty data
-data[1] = d3.range(40).map(randomy); //empty data
-data[2] = d3.range(40).map(randomz);
+  var getRandomArbitrary = function(min, max) {
+      Math.random() * (max - min) + min;
+   };
 
-var chart = simulatedLineChart();
+  var getRandomInt = function(min, max) {
+      Math.floor(Math.random() * (max - min + 1)) + min;
+  };
+
+
+
+
+let nodeData = [
+  { id: 0, name : "A", value: 40 , color:"red" },
+  { id: 1, name: "B", value: 25, color: "green" },
+  { id: 2, name:"C", value: 20, color: "black" },
+  { id: 3, name: "D", value: 15, color: "purple" }
+];
+
+
+var chart = simulatedLineChart().height(700).width(800);
 
 d3.select("body")
-      .data([data])
+      .data([nodeData])
       .call(chart);
 
+ var count = 0;
+
  setInterval( function() { 
-     data[0].push(randomx());
-     data[1].push(randomy());
-     data[2].push(randomz());
+      var newData = {};
+      newData.id = Math.floor(Math.random() * 4);
+      if(count < 100) 
+          yd = 100;
+      else
+         yd = 200;
 
-     chart.update();
-      data[0].shift();
-      data[1].shift();
-      data[2].shift();
+      newData.value = Math.floor(Math.random() * yd );
 
-   }, 1000);
+     chart.update(newData);
+      count++;
+
+   }, 100);
 
 </script>
 
